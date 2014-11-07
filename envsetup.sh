@@ -10,6 +10,7 @@ Invoke ". build/envsetup.sh" from your shell to add the following functions to y
            To limit the modules being built use the syntax: mmm dir/:target1,target2.
 - mma:     Builds all of the modules in the current directory, and their dependencies.
 - mmma:    Builds all of the modules in the supplied directories, and their dependencies.
+- mka:      Builds using SCHED_BATCH on all processors
 - cgrep:   Greps on all local C/C++ files.
 - ggrep:   Greps on all local Gradle files.
 - jgrep:   Greps on all local Java files.
@@ -1413,6 +1414,17 @@ function reposync() {
             ;;
         *)
             schedtool -B -n 1 -e ionice -n 1 `which repo` sync -j$(cat /proc/cpuinfo | grep "^processor" | wc -l) "$@"
+            ;;
+    esac
+}
+
+function mka() {
+    case `uname -s` in
+        Darwin)
+            make -j `sysctl hw.ncpu|cut -d" " -f2` "$@"
+            ;;
+        *)
+            schedtool -B -n 1 -e ionice -n 1 make -j$(cat /proc/cpuinfo | grep "^processor" | wc -l) "$@"
             ;;
     esac
 }

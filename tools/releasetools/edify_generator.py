@@ -125,10 +125,22 @@ class EdifyGenerator(object):
   def AssertSomeBootloader(self, *bootloaders):
     """Asert that the bootloader version is one of *bootloaders."""
     cmd = ("assert(" +
-           " ||\0".join(['getprop("ro.bootloader") == "%s"' % (b,)
+           " || ".join(['getprop("ro.bootloader") == "%s"' % (b,)
                          for b in bootloaders]) +
            ");")
     self.script.append(self._WordWrap(cmd))
+
+  def RunBackup(self, command):
+    self.script.append('ui_print("Installing backuptool...");')
+    self.script.append('package_extract_file("/system/bin/backuptool.sh", "/tmp/backuptool.sh");')
+    self.script.append('package_extract_file("/system/bin/backuptool.functions", "/tmp/backuptool.functions");')
+    self.script.append('set_perm(0, 0, 0755, "/tmp/backuptool.sh");')
+    self.script.append('set_perm(0, 0, 0644, "/tmp/backuptool.functions");')
+    self.script.append('ui_print("Running backuptool if addon.d is present");')
+    self.script.append(('run_program("/tmp/backuptool.sh", "%s");' % command))
+    if command == "restore":
+        self.script.append('delete("/system/bin/backuptool.sh");')
+        self.script.append('delete("/system/bin/backuptool.functions");')
 
   def ShowProgress(self, frac, dur):
     """Update the progress bar, advancing it over 'frac' over the next

@@ -125,6 +125,7 @@ OPTIONS.block_based = False
 OPTIONS.updater_binary = None
 OPTIONS.oem_source = None
 OPTIONS.fallback_to_full = True
+OPTIONS.backuptool = True
 
 def MostPopularKey(d, default):
   """Given a dict, return the key corresponding to the largest
@@ -522,8 +523,8 @@ def WriteFullOTAPackage(input_zip, output_zip):
   #       set up system to update recovery partition on first boot
   #    complete script normally (allow recovery to mark itself finished and reboot)
 
-#  recovery_img = common.GetBootableImage("recovery.img", "recovery.img",
-                                         OPTIONS.input_tmp, "RECOVERY")
+  # recovery_img = common.GetBootableImage("recovery.img", "recovery.img",
+  #                                       OPTIONS.input_tmp, "RECOVERY")
   if OPTIONS.two_step:
     if not OPTIONS.info_dict.get("multistage_support", None):
       assert False, "two-step packages not supported by this build"
@@ -535,7 +536,7 @@ def WriteFullOTAPackage(input_zip, output_zip):
     script.AppendExtra("""
 if get_stage("%(bcb_dev)s") == "2/3" then
 """ % bcb_dev)
-    script.WriteRawImage("/recovery", "recovery.img")
+    # script.WriteRawImage("/recovery", "recovery.img")
     script.AppendExtra("""
 set_stage("%(bcb_dev)s", "3/3");
 reboot_now("%(bcb_dev)s", "recovery");
@@ -543,6 +544,13 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
 """ % bcb_dev)
 
   device_specific.FullOTA_InstallBegin()
+
+  recovery_mount_options = OPTIONS.info_dict.get("recovery_mount_options")
+  script.Mount("/system", recovery_mount_options)
+  script.Print("/system mounted")
+
+  if OPTIONS.backuptool:
+    script.RunBackup("backup")
 
   system_progress = 0.75
 
@@ -552,9 +560,7 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
     system_progress -= 0.1
 
   if "selinux_fc" in OPTIONS.info_dict:
-    WritePolicyConfig(OPTIONS.info_dict["selinux_fc"], output_zip)
-
-  recovery_mount_options = OPTIONS.info_dict.get("recovery_mount_options")
+    WritePolicyConfig(OPTIONS.info_dict["selinux_fc"], output_zip)  
 
   system_items = ItemSet("system", "META/filesystem_config.txt")
   script.ShowProgress(system_progress, 0)
@@ -570,12 +576,12 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   else:
     script.FormatPartition("/system")
     script.Mount("/system", recovery_mount_options)
-#    if not has_recovery_patch:
-#      script.UnpackPackageDir("recovery", "/system")
+    # if not has_recovery_patch:
+    # script.UnpackPackageDir("recovery", "/system")
     script.UnpackPackageDir("system", "/system")
 
     symlinks = CopyPartitionFiles(system_items, input_zip, output_zip)
-    script.MakeSymlinks(symlinks)
+    script.MakeSymlinks(symlinks)    
 
   boot_img = common.GetBootableImage("boot.img", "boot.img",
                                      OPTIONS.input_tmp, "BOOT")
@@ -585,8 +591,8 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
       common.ZipWriteStr(output_zip, "recovery/" + fn, data)
       system_items.Get("system/" + fn, dir=False)
 
-#    common.MakeRecoveryPatch(OPTIONS.input_tmp, output_sink,
-                             recovery_img, boot_img)
+    # common.MakeRecoveryPatch(OPTIONS.input_tmp, output_sink,
+    #                         recovery_img, boot_img)
 
     system_items.GetMetadata(input_zip)
     system_items.Get("system").SetPermissions(script)
@@ -614,7 +620,10 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   common.CheckSize(boot_img.data, "boot.img", OPTIONS.info_dict)
   common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
 
-  script.ShowProgress(0.05, 5)
+  if OPTIONS.backuptool:
+    script.RunBackup("restore")
+
+  script.ShowProgress(0.2, 10)
   script.WriteRawImage("/boot", "boot.img")
 
   script.ShowProgress(0.2, 10)
@@ -730,12 +739,12 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_zip):
   updating_boot = (not OPTIONS.two_step and
                    (source_boot.data != target_boot.data))
 
-#  source_recovery = common.GetBootableImage(
-#      "/tmp/recovery.img", "recovery.img", OPTIONS.source_tmp, "RECOVERY",
-#      OPTIONS.source_info_dict)
-#  target_recovery = common.GetBootableImage(
-#      "/tmp/recovery.img", "recovery.img", OPTIONS.target_tmp, "RECOVERY")
-#  updating_recovery = (source_recovery.data != target_recovery.data)
+  # source_recovery = common.GetBootableImage(
+  #     "/tmp/recovery.img", "recovery.img", OPTIONS.source_tmp, "RECOVERY",
+  #     OPTIONS.source_info_dict)
+  # target_recovery = common.GetBootableImage(
+  #     "/tmp/recovery.img", "recovery.img", OPTIONS.target_tmp, "RECOVERY")
+  # updating_recovery = (source_recovery.data != target_recovery.data)
 
   system_src = GetImage("system", OPTIONS.source_tmp, OPTIONS.source_info_dict)
   system_tgt = GetImage("system", OPTIONS.target_tmp, OPTIONS.target_info_dict)
@@ -797,7 +806,7 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_zip):
 if get_stage("%(bcb_dev)s") == "2/3" then
 """ % bcb_dev)
     script.AppendExtra("sleep(20);\n");
-    script.WriteRawImage("/recovery", "recovery.img")
+#    script.WriteRawImage("/recovery", "recovery.img")
     script.AppendExtra("""
 set_stage("%(bcb_dev)s", "3/3");
 reboot_now("%(bcb_dev)s", "recovery");
@@ -1104,12 +1113,12 @@ def WriteIncrementalOTAPackage(target_zip, source_zip, output_zip):
   updating_boot = (not OPTIONS.two_step and
                    (source_boot.data != target_boot.data))
 
-#  source_recovery = common.GetBootableImage(
-#      "/tmp/recovery.img", "recovery.img", OPTIONS.source_tmp, "RECOVERY",
-#      OPTIONS.source_info_dict)
-#  target_recovery = common.GetBootableImage(
-#      "/tmp/recovery.img", "recovery.img", OPTIONS.target_tmp, "RECOVERY")
-#  updating_recovery = (source_recovery.data != target_recovery.data)
+  # source_recovery = common.GetBootableImage(
+  #     "/tmp/recovery.img", "recovery.img", OPTIONS.source_tmp, "RECOVERY",
+  #     OPTIONS.source_info_dict)
+  # target_recovery = common.GetBootableImage(
+  #     "/tmp/recovery.img", "recovery.img", OPTIONS.target_tmp, "RECOVERY")
+  # updating_recovery = (source_recovery.data != target_recovery.data)
 
   # Here's how we divide up the progress bar:
   #  0.1 for verifying the start state (PatchCheck calls)
@@ -1153,7 +1162,7 @@ def WriteIncrementalOTAPackage(target_zip, source_zip, output_zip):
 if get_stage("%(bcb_dev)s") == "2/3" then
 """ % bcb_dev)
     script.AppendExtra("sleep(20);\n");
-    script.WriteRawImage("/recovery", "recovery.img")
+#    script.WriteRawImage("/recovery", "recovery.img")
     script.AppendExtra("""
 set_stage("%(bcb_dev)s", "3/3");
 reboot_now("%(bcb_dev)s", "recovery");

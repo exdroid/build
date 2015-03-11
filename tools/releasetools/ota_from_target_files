@@ -543,7 +543,6 @@ def WriteFullOTAPackage(input_zip, output_zip):
 # else if get_stage("%(bcb_dev)s") == "3/3" then
 # """ % bcb_dev)
 
-  script.AppendExtra("ifelse(is_mounted(\"/system\"), unmount(\"/system\"));")
   device_specific.FullOTA_InstallBegin()   
 
   if OPTIONS.backuptool:
@@ -566,10 +565,11 @@ def WriteFullOTAPackage(input_zip, output_zip):
   if "selinux_fc" in OPTIONS.info_dict:
     WritePolicyConfig(OPTIONS.info_dict["selinux_fc"], output_zip)
 
-  recovery_mount_options = OPTIONS.info_dict.get("recovery_mount_options") 
+  recovery_mount_options = OPTIONS.info_dict.get("recovery_mount_options")
 
   system_items = ItemSet("system", "META/filesystem_config.txt")
   script.ShowProgress(system_progress, 0)
+
   if block_based:
     # Full OTA is done as an "incremental" against an empty source
     # image.  This has the effect of writing new data from the package
@@ -583,7 +583,7 @@ def WriteFullOTAPackage(input_zip, output_zip):
     script.FormatPartition("/system")
     script.Mount("/system", recovery_mount_options)
     # if not has_recovery_patch:
-    #   script.UnpackPackageDir("recovery", "/system")
+      # script.UnpackPackageDir("recovery", "/system")
     script.UnpackPackageDir("system", "/system")
 
     symlinks = CopyPartitionFiles(system_items, input_zip, output_zip)
@@ -864,6 +864,11 @@ set_stage("%(bcb_dev)s", "2/3");
 reboot_now("%(bcb_dev)s", "");
 else
 """ % bcb_dev)
+
+  # Verify the existing partitions.
+  system_diff.WriteVerifyScript(script)
+  if vendor_diff:
+    vendor_diff.WriteVerifyScript(script)
 
   script.Comment("---- start making changes here ----")
 

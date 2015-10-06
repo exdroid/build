@@ -126,10 +126,24 @@ class EdifyGenerator(object):
   def AssertSomeBootloader(self, *bootloaders):
     """Asert that the bootloader version is one of *bootloaders."""
     cmd = ("assert(" +
-           " ||\0".join(['getprop("ro.bootloader") == "%s"' % (b,)
+           " || ".join(['getprop("ro.bootloader") == "%s"' % (b,)
                          for b in bootloaders]) +
            ");")
     self.script.append(self.WordWrap(cmd))
+
+  def RunBackup(self, command):
+    self.script.append('package_extract_file("system/bin/backuptool.sh", "/tmp/backuptool.sh");')
+    self.script.append('package_extract_file("system/bin/backuptool.functions", "/tmp/backuptool.functions");')
+    self.script.append('set_metadata("/tmp/backuptool.sh", "uid", 0, "gid", 0, "mode", 0755);')
+    self.script.append('set_metadata("/tmp/backuptool.functions", "uid", 0, "gid", 0, "mode", 0644);')
+    if command == "backup":
+        self.script.append('ui_print("Backing up gapps if addon.d is present.");')
+    if command == "restore":
+        self.script.append('ui_print("Restoring gapps if addon.d is present.");')        
+        self.script.append('delete("/system/bin/backuptool.sh");')
+        self.script.append('delete("/system/bin/backuptool.functions");')
+    self.script.append('ui_print("This may take a while.");')
+    self.script.append(('run_program("/tmp/backuptool.sh", "%s");' % command))
 
   def ShowProgress(self, frac, dur):
     """Update the progress bar, advancing it over 'frac' over the next
